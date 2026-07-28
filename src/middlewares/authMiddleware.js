@@ -1,23 +1,25 @@
 import jwt from "jsonwebtoken";
 
-export const authMiddleware = async (req, res, next) => {
+export const protect = async (req, res, next) => {
+  const header = req.headers.authorization || "";
+
+  const token = header.startsWith("Bearer ") ? header.split(" ")[1] : null;
+
+  if (!token) {
+    return res.status(401).json({
+      messgae: "Not authorized..",
+      success: false,
+    });
+  }
+
   try {
-    const token = req.cookies?.token;
-
-    if (!token) {
-      return res.status(404).json({
-        message: "Token not Found...",
-        success: false,
-      });
-    }
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decode;
 
+    req.userId = decoded.id;
     next();
   } catch (error) {
-    res.status(501).json({
-      message: error.message,
-      success: false,
+    res.status(401).json({
+      messgae: error.messgae || "Not authorized...",
     });
   }
 };

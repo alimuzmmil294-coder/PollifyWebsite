@@ -1,15 +1,25 @@
 import nodemailer from "nodemailer";
 
+// Parse port as a number
+const port = Number(process.env.SMTP_PORT || process.env.STMP_PORT) || 587;
+
 const transporter = nodemailer.createTransport({
-  host: process.env.STMP_HOST,
-  port: Number(process.env.STMP_PORT) || 587,
-  secure: Number(process.env.STMP_PORT),
-  auth: { user: process.env.STMP_USER, pass: process.env.STMP_PASS },
+  host: process.env.SMTP_HOST || process.env.STMP_HOST,
+  port: port,
+  // FIXED: Port 465 is secure (SSL), Port 587 is not secure (TLS/STARTTLS)
+  secure: port === 465,
+  auth: {
+    user: process.env.SMTP_USER || process.env.STMP_USER,
+    pass: process.env.SMTP_PASS || process.env.STMP_PASS,
+  },
 });
 
 export const sendOtpEmail = async (to, otp, reason = "Verify your email..") => {
+  const fromUser =
+    process.env.EMAIL_FROM || process.env.SMTP_USER || process.env.STMP_USER;
+
   await transporter.sendMail({
-    from: `"Pollify" <${process.env.EMAIL_FROM || process.env.SMTP_USER}>`,
+    from: `"Pollify" <${fromUser}>`,
     to,
     subject: `${otp} is your Pollify code`,
     html: `

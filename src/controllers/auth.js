@@ -58,14 +58,11 @@ export const SignUp = async (req, res) => {
       password: hashPassword,
       avatar,
       otp,
-      otpExpires: otpExpire(),
+      otpExpire: otpExpire(),
+      needVerification: true,
     });
 
     await sendOtpEmail(email, otp, "Verify your pollify account");
-    res.status(201).json({
-      needVerification: true,
-      email,
-    });
 
     let userResponse = newUser.toObject();
     delete userResponse.password;
@@ -94,16 +91,27 @@ export const verifyOtp = async (req, res) => {
       });
     }
 
-    if (!user.isVerified && !otpValid(user, otp)) {
+    // 1. First check: Is the user already verified?
+    if (user.isVerified) {
       return res.status(400).json({
-        message: "Invalid or Expired OTP...",
+        message: "User is already verified. Please log in.",
         success: false,
       });
     }
+    // console.log(user.isVerified);
 
+    // 2. Second check: Is the OTP valid?
+
+    // console.log(otpValid(user, otp));
+    if (!otpValid(user, otp)) {
+      return res.status(400).json({
+        message: "Invalid or expired OTP...",
+        success: false,
+      });
+    }
     user.isVerified = true;
     user.otp = undefined;
-    user.otpExpires = undefined;
+    user.otpExpire = undefined;
 
     await user.save();
     res.json({
@@ -129,7 +137,7 @@ export const resendOtp = async (req, res) => {
     }
 
     user.otp = generateOtp();
-    user.otpExpires = otpExpire();
+    user.otpExpire = otpExpire();
 
     await user.save();
     await sendOtpEmail(user.email, user.otp, "cerify your Pollify account..");
@@ -148,7 +156,7 @@ export const Login = async (req, res) => {
 
     const findUser = await User.findOne({ email: email });
 
-    const comparePassword = bcrypt.compare(password, findUser.password);
+    const comparePassword = await bcrypt.compare(password, findUser.password);
 
     if (!findUser || !comparePassword) {
       return res.status(404).json({
@@ -167,8 +175,8 @@ export const Login = async (req, res) => {
     }
 
     res.json({
-      token: generateToken(user._id),
-      user: clean(user),
+      token: generateToken(findUser._id),
+      findUser: clean(findUser),
     });
   } catch (error) {
     res.status(500).json({
@@ -272,6 +280,8 @@ export const deleteAccount = async (req, res) => {
 
 export const getMe = async (req, res) => {
   try {
+    console.log("Extracted userId from middleware:", req.userId); // Debug check
+
     const user = await User.findById(req.userId);
     if (!user) {
       return res.status(404).json({
@@ -290,11 +300,12 @@ export const getMe = async (req, res) => {
       stats: {
         created,
         voted,
-        bookmarked: user.bookmarks.length,
+        bookmarked: user.bookmarks ? user.bookmarks.length : 0, // Safe navigation check
       },
     });
   } catch (error) {
-    res.status(501).json({
+    res.status(500).json({
+      // Standardized 500 status code
       message: error.message || "Internal server error",
       success: false,
     });

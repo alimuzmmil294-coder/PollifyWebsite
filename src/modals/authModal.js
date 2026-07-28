@@ -36,10 +36,10 @@ const userSchema = new mongoose.Schema(
       default: "",
       maxlength: 160,
     },
-    bookmark: [
+    bookmarks: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "polls",
+        ref: "Poll",
       },
     ],
     following: [
@@ -52,12 +52,18 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    otp: String,
-    otpExpires: Date,
+    otp: {
+      type: String, // Changed to String to match inputOtp.trim()
+      default: undefined,
+    },
+    otpExpire: {
+      type: Date,
+      default: undefined,
+    },
   },
   {
     timestamps: true,
-  },
+  }
 );
 
-export const User = mongoose.model("user", userSchema);
+export const User = mongoose.model("User", userSchema);
