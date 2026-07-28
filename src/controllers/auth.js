@@ -2,7 +2,20 @@ import mongoose from "mongoose";
 import { User } from "../modals/authModal.js";
 import bcrypt from "bcryptjs";
 import { uploadToCloudinary } from "../configs/cloudinary.js";
-import { generateOtp, otpExpire } from "../utils/otp.js";
+import { generateOtp, otpExpire, otpValid } from "../utils/otp.js";
+import { sendOtpEmail } from "../configs/nodemailer.js";
+import jwt from "jsonwebtoken";
+
+const generateToken = (id) =>
+  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+
+const clean = (u) => ({
+  _id: u._id,
+  username: u.username,
+  email: u.email,
+  fullName: u.fullName,
+  bio: u.bio,
+});
 
 export const SignUp = async (req, res) => {
   try {
@@ -15,7 +28,7 @@ export const SignUp = async (req, res) => {
       });
     }
 
-    const findUser = await User.findById({ email: email });
+    const findUser = await User.findOne({ email: email });
     if (findUser) {
       return res.status(400).json({
         message: "User already exists...",
@@ -46,6 +59,12 @@ export const SignUp = async (req, res) => {
       otpExpires: otpExpire(),
     });
 
+    await sendOtpEmail(email, otp, "Verify your pollify account");
+    res.status(201).json({
+      needVerification: true,
+      email,
+    });
+
     let userResponse = newUser.toObject();
     delete userResponse.password;
 
@@ -56,7 +75,173 @@ export const SignUp = async (req, res) => {
     });
   } catch (error) {
     res.status(501).json({
-      message: "Internal Server Error...",
+      message: error.message || "Internal Server Error...",
+    });
+  }
+};
+
+export const verifyOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found...",
+        success: false,
+      });
+    }
+
+    if (!user.isVerified && !otpValid(user, otp)) {
+      return res.status(400).json({
+        message: "Invalid or Expired OTP...",
+        success: false,
+      });
+    }
+
+    user.isVerified = true;
+    user.otp = undefined;
+    user.otpExpires = undefined;
+
+    await user.save();
+    res.json({
+      token: generateToken(user._id),
+      user: clean(user),
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message || "Internal sever error...",
+      success: false,
+    });
+  }
+};
+
+export const resendOtp = async (req, res) => {
+  try {
+    const user = await User.findOne({ email: req.body.email });
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found...",
+        success: false,
+      });
+    }
+
+    user.otp = generateOtp();
+    user.otpExpires = otpExpire();
+
+    await user.save();
+    await sendOtpEmail(user.email, user.otp, "cerify your Pollify account..");
+    res.json({ message: "OTP Sent...", success: true });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message || "Internal server error...",
+      success: false,
+    });
+  }
+};
+
+export const Login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const findUser = await User.findOne({ email: email });
+
+    const comparePassword = bcrypt.compare(password, findUser.password);
+
+    if (!findUser || !comparePassword) {
+      return res.status(404).json({
+        message: "Invalid credentials..",
+        success: false,
+      });
+    }
+
+    if (!findUser.isVerified) {
+      return res.status(403).json({
+        message: "Please verify your email first!",
+        needVerification: true,
+        email,
+        success: false,
+      });
+    }
+
+    res.json({
+      token: generateToken(user._id),
+      user: clean(user),
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message || "Internal Sever Error...",
+      success: false,
+    });
+  }
+};
+
+export const updateProfile = async (req, res) => {
+  try {
+    const { name, username, bio } = req.body;
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (username && username !== user.username) {
+      const taken = await User.findOne({ username });
+      if (taken)
+        return res.status(400).json({ message: "Username already taken" });
+      user.username = username;
+    }
+    if (name) user.name = name;
+    if (bio !== undefined) user.bio = bio;
+    if (req.file) {
+      try {
+        user.avatar = await uploadToCloudinary(req.file.buffer);
+      } catch (e) {
+        console.warn("Avatar upload skipped:", e.message);
+      }
+    }
+    await user.save();
+    res.json({ user: clean(user) });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 8) {
+      return res.status(400).json({
+        message: "Password  mush be at least 8 characters long..",
+        success: false,
+      });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found...",
+        success: false,
+      });
+    }
+
+    if (!(await user.matchPassword(currentPassword))) {
+      return res.status(400).json({
+        message: "Current password is incorrect..",
+        success: false,
+      });
+    }
+    user.password = newPassword;
+    await user.save();
+    res.json({
+      message:"Password updated successfully...",
+      success:true
+    })
+
+
+
+  } catch (error) {
+    res.status(501).json({
+      message: error.message || "Internal server error",
+      success: false,
     });
   }
 };
