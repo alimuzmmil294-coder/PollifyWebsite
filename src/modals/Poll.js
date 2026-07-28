@@ -59,4 +59,4 @@ const pollSchema = new mongoose.Schema({
   },
   votes: [voteSchema],
 });
-export const Poll = mongoose.model("poll", pollShcema);
+export const Poll = mongoose.model("Poll", pollSchema);

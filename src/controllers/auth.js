@@ -5,6 +5,8 @@ import { uploadToCloudinary } from "../configs/cloudinary.js";
 import { generateOtp, otpExpire, otpValid } from "../utils/otp.js";
 import { sendOtpEmail } from "../configs/nodemailer.js";
 import jwt from "jsonwebtoken";
+import { Poll } from "../modals/Poll.js";
+import { Comment } from "../modals/comment.js";
 
 const generateToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
@@ -232,12 +234,65 @@ export const changePassword = async (req, res) => {
     user.password = newPassword;
     await user.save();
     res.json({
-      message:"Password updated successfully...",
-      success:true
-    })
+      message: "Password updated successfully...",
+      success: true,
+    });
+  } catch (error) {
+    res.status(501).json({
+      message: error.message || "Internal server error",
+      success: false,
+    });
+  }
+};
 
+export const deleteAccount = async (req, res) => {
+  try {
+    const id = req.userId;
+    const poll = await Poll.findById({ creator: id }).select({ _id });
 
+    const pollIds = poll.map((p) => p._id);
 
+    await Comment.deleteMany({
+      $of: [{ user: id }, { poll: { $in: pollIds } }],
+    });
+    await Poll.updateMany({}, { $pull: { votes: { user: id } } });
+    await User.findByIdAndDelete(id);
+
+    res.status(200).json({
+      message: "Account deleted successfully....",
+      success: true,
+    });
+  } catch (error) {
+    res.status(501).json({
+      message: error.message || "Internal server error",
+      success: false,
+    });
+  }
+};
+
+export const getMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found..",
+        success: false,
+      });
+    }
+
+    const [created, voted] = await Promise.all([
+      Poll.countDocuments({ creator: user._id }),
+      Poll.countDocuments({ "votes.user": user._id }),
+    ]);
+
+    res.json({
+      user: clean(user),
+      stats: {
+        created,
+        voted,
+        bookmarked: user.bookmarks.length,
+      },
+    });
   } catch (error) {
     res.status(501).json({
       message: error.message || "Internal server error",
