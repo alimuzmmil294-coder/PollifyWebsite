@@ -6,6 +6,6 @@ const router = Router();
 
 router.use("/auth", authRoutes);
 router.use("/notifications", notificaionRoute);
-router.use("/notifications", pollRoutes);
+router.use("/polls", pollRoutes);
 
 export default router;

@@ -7,19 +7,32 @@ export const protect = async (req, res, next) => {
 
   if (!token) {
     return res.status(401).json({
-      messgae: "Not authorized..",
+      message: "Not authorized, token missing.",
       success: false,
     });
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log(decoded);
 
-    req.userId = decoded.id;
+    // Make sure your JWT payload actually uses 'id' (e.g. jwt.sign({ id: user._id }))
+    // If you signed it with { userId: user._id }, change this to decoded.userId
+    req.userId = decoded.id || decoded.userId || decoded._id;
+    console.log(req.userId);
+    
+    if (!req.userId) {
+      return res.status(401).json({
+        message: "Invalid token payload.",
+        success: false,
+      });
+    }
+
     next();
   } catch (error) {
-    res.status(401).json({
-      messgae: error.messgae || "Not authorized...",
+    return res.status(401).json({
+      message: error.message || "Not authorized, token failed.",
+      success: false,
     });
   }
 };
