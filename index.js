@@ -1,5 +1,6 @@
 import "dotenv/config"; // 1. Load .env vars FIRST
 import express from "express";
+import cors from 'cors'
 import { dbConnection } from "./src/configs/dbConnection.js"; // 2. Now import DB config
 
 import allRoutes from "./src/routes/index.js";
@@ -9,6 +10,9 @@ const app = express();
 // 3. Connect to database
 dbConnection();
 
+app.use(cors({
+  origin:process.env.CLIEN_URL, credentials:true
+}))
 app.use(express.json());
 
 app.use("/api", allRoutes);

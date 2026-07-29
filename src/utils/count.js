@@ -1,4 +1,4 @@
-import Comment from "../modals/comment.js";
+import {Comment} from "../modals/comment.js";
 
 async function countsFor(pollsIds) {
   if (!pollsIds.length) return { commentMap: {}, saveMap: {} };
@@ -23,7 +23,7 @@ async function countsFor(pollsIds) {
   return {commentMap, saveMap};
 }
 
-export async function name(shapePolls) {
+export async function withCounts(shapePolls) {
     const {commentMap, saveMap} = await countsFor(
         shapePolls.map((p) => p._id)
     )
