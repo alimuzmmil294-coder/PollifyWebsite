@@ -4,17 +4,17 @@ const commentSchema = new mongoose.Schema(
   {
     poll: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "poll",
-      required:true,
+      ref: "Poll", // 👈 Capitalized "Poll"
+      required: true,
     },
     user: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "user",
-      required:true,
+      ref: "User", // 👈 Capitalized "User" (fixes the error you received)
+      required: true,
     },
     parent: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "comment",
+      ref: "Comment", // 👈 Capitalized "Comment"
       default: null,
     },
     text: {
@@ -25,7 +25,8 @@ const commentSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
-export const Comment = mongoose.models.Comment || mongoose.model("Comment", commentSchema);
+export const Comment =
+  mongoose.models.Comment || mongoose.model("Comment", commentSchema);
