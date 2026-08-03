@@ -16,7 +16,7 @@ export const forgotPassword = async (req, res) => {
 
     await user.save();
 
-    await sendOtpEmail(user.email, user.otp, "reset your Pollify Password...");
+    await sendOtpEmail(user.email, user.otp, "reset your Pollify password...");
 
     res.status(201).json({
       message: "OTP sent to your email...",

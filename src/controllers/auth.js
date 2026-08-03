@@ -81,7 +81,16 @@ export const SignUp = async (req, res) => {
 
 export const verifyOtp = async (req, res) => {
   try {
-    const { email, otp } = req.body;
+    // Read both 'otp' and 'code' to prevent body key mismatch bugs
+    const { email, otp, code } = req.body;
+    const submittedOtp = otp || code;
+
+    if (!email || !submittedOtp) {
+      return res.status(400).json({
+        message: "Email and OTP are required.",
+        success: false,
+      });
+    }
 
     const user = await User.findOne({ email });
     if (!user) {
@@ -91,36 +100,38 @@ export const verifyOtp = async (req, res) => {
       });
     }
 
-    // 1. First check: Is the user already verified?
+    // 1. Check: Is the user already verified?
     if (user.isVerified) {
       return res.status(400).json({
         message: "User is already verified. Please log in.",
         success: false,
       });
     }
-    // console.log(user.isVerified);
 
-    // 2. Second check: Is the OTP valid?
-
-    // console.log(otpValid(user, otp));
-    if (!otpValid(user, otp)) {
+    // 2. Check: Is the OTP valid?
+    if (!otpValid(user, submittedOtp)) {
       return res.status(400).json({
         message: "Invalid or expired OTP...",
         success: false,
       });
     }
+
+    // 3. Update verification state and clear OTP fields
     user.isVerified = true;
     user.otp = undefined;
     user.otpExpire = undefined;
 
     await user.save();
-    res.json({
+
+    return res.status(200).json({
+      success: true, // Included for frontend consistency
+      message: "Email verified successfully!",
       token: generateToken(user._id),
       user: clean(user),
     });
   } catch (error) {
-    res.status(500).json({
-      message: error.message || "Internal sever error...",
+    return res.status(500).json({
+      message: error.message || "Internal server error...",
       success: false,
     });
   }
@@ -154,13 +165,32 @@ export const Login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const findUser = await User.findOne({ email: email });
+    if (!email || !password) {
+      return res.status(400).json({
+        message: "Please provide both email and password.",
+        success: false,
+      });
+    }
 
+    // 1. Find user by email
+    const findUser = await User.findOne({ email });
+    console.log("User found:", findUser?.email); // Debug check
+
+    // Stop early if user doesn't exist (prevents findUser.password crash)
+    if (!findUser) {
+      return res.status(400).json({
+        message: "Invalid credentials.. Email",
+        success: false,
+      });
+    }
+
+    // 2. Compare password only after confirming user exists
     const comparePassword = await bcrypt.compare(password, findUser.password);
+    console.log("Password comparison result:", comparePassword); // Debug check
 
-    if (!findUser || !comparePassword) {
-      return res.status(404).json({
-        message: "Invalid credentials..",
+    if (!comparePassword) {
+      return res.status(400).json({
+        message: "Invalid credentials.. Password",
         success: false,
       });
     }
@@ -174,13 +204,15 @@ export const Login = async (req, res) => {
       });
     }
 
-    res.json({
+    res.status(200).json({
       token: generateToken(findUser._id),
       findUser: clean(findUser),
+      success: true,
+      message: "Login successful...",
     });
   } catch (error) {
     res.status(500).json({
-      message: error.message || "Internal Sever Error...",
+      message: "Internal Sever Error...",
       success: false,
     });
   }
